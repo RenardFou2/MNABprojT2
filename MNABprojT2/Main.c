@@ -1,45 +1,45 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <sys/wait.h>
-#include <fcntl.h>
 #include <signal.h>
+#include <fcntl.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
-char* history[20]; // tablica przechowuj¹ca historiê poleceñ
-int history_count = 0; // licznik poleceñ w historii
+char* history[20];
+int history_length = 0;
 
-void execute_command(char** args, int background, int output_fd) {
+void exec_command(char** args, int background, int redir_fil_desc) {
     pid_t pid = fork();
 
-    // proces potomny
+    // child
     if (pid == 0) {
         
         // Sprawdza czy przekierowano std wyj
-        if (output_fd != -1) {
-            dup2(output_fd, STDOUT_FILENO);
-            close(output_fd);
+        if (redir_fil_desc != -1) {
+            dup2(redir_fil_desc, STDOUT_FILENO);
+            close(redir_fil_desc);
         }
 
         execvp(args[0], args); 
         perror("execvp");
         exit(EXIT_FAILURE);
     }
-    
-    // proces rodzicielski
+
+    // parent
     else if (pid > 0) {
-        if (background == 0) { // czekanie na zakoñczenie procesu
+        if (background == 0) {
             int status;
             waitpid(pid, &status, 0);
         }
     }
-    else { // b³¹d podczas tworzenia procesu
+    else {
         perror("fork");
     }
 }
 
 
-void change_directory(char** args) {
+void change_dir(char** args) {
     if (args[1] == NULL) { 
         chdir(getenv("HOME"));
     }
@@ -50,17 +50,16 @@ void change_directory(char** args) {
     }
 }
 
-void add_to_history(char* command) {
+void history_add(char* input) {
     
-    if (history_count < 20) {
-        history[history_count++] = strdup(command);
+    if (history_length < 20) {
+        history[history_length++] = strdup(input);
     }
     else {
-        free(history[0]);
         for (int i = 0; i < 19; i++) {
             history[i] = history[i + 1];
         }
-        history[19] = strdup(command);
+        history[19] = strdup(input);
     }
 
     FILE* plik;
@@ -69,15 +68,15 @@ void add_to_history(char* command) {
         perror("fopen");
         return;
     }
-    fprintf(plik, "%s\n", command);
+    fprintf(plik, "%s\n", input);
     fclose(plik);
 }
 
 
-// wyœwietlenie historii poleceñ po otrzymaniu sygna³u SIGQUIT
-void handle_signal(int sig) {
+// wyœwietlenie historii po otrzymaniu SIGQUIT
+void signal_handler(int sig) {
     if (sig == SIGQUIT) {
-        for (int i = 0; i < history_count; i++) {
+        for (int i = 0; i < history_length; i++) {
             printf("%d %s\n", i + 1, history[i]);
         }
     }
@@ -85,12 +84,12 @@ void handle_signal(int sig) {
 
 int main() 
 {
-    char input[128]; // bufor na wejœcie u¿ytkownika
-    char* args[64]; // tablica na argumenty polecenia
-    char* redirect_output = NULL; // nazwa pliku, do którego przekierowaæ wyjœcie
-    int background = 0; // czy uruchomiæ program w tle
+    char input[128];
+    char* args[64];
+    char* redirect_output_file = NULL; // nazwa pliku, do którego przekierowaæ wyjœcie
+    int bg = 0; // zmienna kontroluj¹ca, czy program ma byæ uruchomiony w tle
     
-    signal(SIGQUIT, handle_signal); // obs³uga sygna³u SIGQUIT
+    signal(SIGQUIT, signal_handler); // obs³uga sygna³u SIGQUIT
 
     while (1) {
         
@@ -104,28 +103,27 @@ int main()
             continue;
         }
 
-        input[strlen(input) - 1] = '\0'; // usuniêcie znaku nowej linii z koñca wejœcia
+        input[strlen(input) - 1] = '\0'; // us. znaku nowej linii
 
-        if (strcmp(input, "exit") == 0) { // wyjœcie z pow³oki
+        if (strcmp(input, "exit") == 0) {
             break;
         }
         
-        // dodanie polecenia do historii
-        add_to_history(input);
+        history_add(input);
 
-        // podzielenie wejœcia na tokeny
+        // podzielenie inputu u¿ytkownika na tokeny
         char* token = strtok(input, " ");
         int i = 0;
         while (token != NULL) {
             
-            // program ma byæ uruchomiony w tle
+            // prog. uruchomiony w tle
             if (strcmp(token, "&") == 0) {
-                background = 1;
+                bg = 1;
                 break;
             }
-            // przekierowanie wyjœcia
+            // przekierowanie std wyj.
             else if (strcmp(token, ">") == 0) {
-                redirect_output = strtok(NULL, " ");
+                redirect_output_file = strtok(NULL, " ");
                 break;
             }
 
@@ -136,34 +134,33 @@ int main()
         }
         args[i] = NULL;
 
-
         //Zmiana katalogu
         if (strcmp(args[0], "cd") == 0) {
-            change_directory(args);
+            change_dir(args);
         }
         
-        // uruchomienie programu
+        //Odpala program
         else { 
             
             //Deskryptor pliku w przypadku przekierowania
-            int output_fd = -1;
+            int redir_fil_desc = -1;
             //Sprawdza czy wyjœcie zosta³o przekierowane
-            if (redirect_output != NULL) { 
-                output_fd = open(redirect_output, O_CREAT | O_TRUNC | O_WRONLY);
-                if (output_fd == -1) {
+            if (redirect_output_file != NULL) {
+                redir_fil_desc = open(redirect_output_file, O_CREAT | O_TRUNC | O_WRONLY);
+                if (redir_fil_desc == -1) {
                     perror("open");
                     continue;
                 }
             }
-            execute_command(args, background, output_fd);
-            if (output_fd != -1) {
-                close(output_fd);
+            exec_command(args, bg, redir_fil_desc);
+            if (redir_fil_desc != -1) {
+                close(redir_fil_desc);
             }
         }
 
-        // resetowanie flag i wskaŸników
-        redirect_output = NULL;
-        background = 0;
+        // resetowanie zmiennych
+        redirect_output_file = NULL;
+        bg = 0;
         for (int j = 0; j < 64; j++) {
             args[j] = NULL;
         }
