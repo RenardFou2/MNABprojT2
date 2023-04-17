@@ -72,16 +72,13 @@ void add_to_history(char* command) {
     fclose(plik);
 }
 
-void print_history() {
-    for (int i = 0; i < history_count; i++) {
-        printf("%d %s\n", i + 1, history[i]);
-    }
-}
 
 // wyœwietlenie historii poleceñ po otrzymaniu sygna³u SIGQUIT
 void handle_signal(int sig) {
     if (sig == SIGQUIT) {
-        print_history();
+        for (int i = 0; i < history_count; i++) {
+            printf("%d %s\n", i + 1, history[i]);
+        }
     }
 }
 
@@ -114,11 +111,6 @@ int main()
 
         if (strcmp(input, "exit") == 0) { // wyjœcie z pow³oki
             break;
-        }
-        
-        else if (strcmp(input, "history") == 0) { // wyœwietlenie historii poleceñ
-            print_history();
-            continue;
         }
         
         // dodanie polecenia do historii
