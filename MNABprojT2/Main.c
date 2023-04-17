@@ -9,16 +9,16 @@
 char* history[20];
 int history_length = 0;
 
-void exec_command(char** args, int background, int redir_fil_desc) {
+void exec_command(char** args, int background, int redir_file_desc) {
     pid_t pid = fork();
 
     // child
     if (pid == 0) {
         
         // Sprawdza czy przekierowano std wyj
-        if (redir_fil_desc != -1) {
-            dup2(redir_fil_desc, STDOUT_FILENO);
-            close(redir_fil_desc);
+        if (redir_file_desc != -1) {
+            dup2(redir_file_desc, STDOUT_FILENO);
+            close(redir_file_desc);
         }
 
         execvp(args[0], args); 
@@ -62,6 +62,7 @@ void history_add(char* input) {
         history[19] = strdup(input);
     }
 
+    //Dopisuje do pliku z histori¹
     FILE* plik;
     plik = fopen("history.txt", "a");
     if (plik == NULL) {
@@ -143,18 +144,18 @@ int main()
         else { 
             
             //Deskryptor pliku w przypadku przekierowania
-            int redir_fil_desc = -1;
+            int redir_file_desc = -1;
             //Sprawdza czy wyjœcie zosta³o przekierowane
             if (redirect_output_file != NULL) {
-                redir_fil_desc = open(redirect_output_file, O_CREAT | O_TRUNC | O_WRONLY);
-                if (redir_fil_desc == -1) {
+                redir_file_desc = open(redirect_output_file, O_CREAT | O_TRUNC | O_WRONLY);
+                if (redir_file_desc == -1) {
                     perror("open");
                     continue;
                 }
             }
-            exec_command(args, bg, redir_fil_desc);
-            if (redir_fil_desc != -1) {
-                close(redir_fil_desc);
+            exec_command(args, bg, redir_file_desc);
+            if (redir_file_desc != -1) {
+                close(redir_file_desc);
             }
         }
 
