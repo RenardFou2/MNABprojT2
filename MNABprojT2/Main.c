@@ -51,15 +51,16 @@ void change_directory(char** args) {
 }
 
 void add_to_history(char* command) {
+    
     if (history_count < 20) {
         history[history_count++] = strdup(command);
     }
     else {
         free(history[0]);
-        for (int i = 0; i < 20 - 1; i++) {
+        for (int i = 0; i < 19; i++) {
             history[i] = history[i + 1];
         }
-        history[20 - 1] = strdup(command);
+        history[19] = strdup(command);
     }
 
     FILE* plik;
@@ -98,10 +99,6 @@ int main()
         getcwd(cwd, sizeof(cwd));
         printf("%s$ ", cwd);
         fflush(stdout);
-
-        if (fgets(input, 1024, stdin) == NULL) { // koniec pliku
-            break;
-        }
 
         if (strlen(input) == 1) { // pusty wiersz
             continue;
