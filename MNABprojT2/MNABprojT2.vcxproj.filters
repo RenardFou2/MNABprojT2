@@ -20,7 +20,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\..\..\..\Desktop\Makefile">
+    <None Include="..\..\..\..\Desktop\Makefile.mak">
       <Filter>Source Files</Filter>
     </None>
   </ItemGroup>
